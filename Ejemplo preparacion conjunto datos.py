@@ -43,39 +43,38 @@ print("Longitud del Test Set:", len(test_set))
 X_train = train_set.drop("class", axis=1)
 y_train = train_set["class"].copy()
 
-# Creamos valores nulos de ejemplo
+# Creamos valores nulos de ejemplo y comprobamos las posibles opciones a seguir
 # Para ilustrar esta sección vamos a añadir algunos valores nulos 
 # a algunas características del conjunto de datos
 X_train.loc[(X_train["src_bytes"]>400) & (X_train["src_bytes"]<800), "src_bytes"] = np.nan
 X_train.loc[(X_train["dst_bytes"]>500) & (X_train["dst_bytes"]<2000), "dst_bytes"] = np.nan
 
+# Opcion 1 - Eliminar las filas con valores nulos
 # Comprobamos si existe algún atributo con valores nulos
 # print(X_train.isna().any())
-
 # Seleccionamos las filas que contienen valores nulos
 filas_valores_nulos  = X_train[X_train.isnull().any(axis=1)]
 # print(filas_valores_nulos)
-
 # Copiamos el conjunto de datos para no alterar el original
 X_train_copy = X_train.copy()
-
 # Eliminamos las filas con valores nulos
 X_train_copy.dropna(subset=["src_bytes", "dst_bytes"], inplace=True)
 # print(X_train_copy)
-
 # Contamos el número de filas eliminadas
 # print("El número de filas eliminadas es:", len(X_train) - len(X_train_copy))
 
-# Eliminamos los atributos con valores nulos
+# Opcion 2 - eliminar atributos con valores nulos
+# Copiamos el conjunto de datos para no alterar el original
+X_train_copy = X_train.copy()
+# Eliminamos los atributos con valores nulos y guardamos el resultado en el DF original, esto gracias al "implace=true"
 X_train_copy.drop(["src_bytes", "dst_bytes"], axis=1, inplace=True)
 # print(X_train_copy)
-
 # Contamos el número de atributos eliminados
 # print("El número de atributos eliminados es:", len(list(X_train)) - len(list(X_train_copy)))
 
+# Opcion 3 - Rellenamos los valores nulos
 # Copiamos el conjunto de datos para no alterar el original
 X_train_copy = X_train.copy()
-
 # Rellenamos los valores nulos con la media de los valores del atributo
 media_srcbytes = X_train_copy["src_bytes"].mean()
 media_dstbytes = X_train_copy["dst_bytes"].mean()
@@ -83,16 +82,7 @@ X_train_copy["src_bytes"] = X_train_copy["src_bytes"].fillna(media_srcbytes)
 X_train_copy["dst_bytes"] = X_train_copy["dst_bytes"].fillna(media_dstbytes)
 # print(X_train_copy)
 
-# Copiamos el conjunto de datos para no alterar el original
-X_train_copy = X_train.copy()
-# Un valor muy alto en el atributo puede disparar la media
-# Rellenamos los valores con la mediana
-mediana_srcbytes = X_train_copy["src_bytes"].median()
-mediana_dstbytes = X_train_copy["dst_bytes"].median()
-X_train_copy["src_bytes"] = X_train_copy["src_bytes"].fillna(mediana_srcbytes)
-X_train_copy["dst_bytes"] = X_train_copy["dst_bytes"].fillna(mediana_dstbytes)
-# print(X_train_copy)
-
+# Opcion 3.2 - Rellenar con la clase imputer de sklearn
 # Copiamos el conjunto de datos para no alterar el original
 X_train_copy = X_train.copy()
 imputer = SimpleImputer(strategy="median")
@@ -108,9 +98,10 @@ X_train_copy = pd.DataFrame(X_train_copy_num_nonan, columns=X_train_copy_num.col
 # print(X_train_copy.head(10))
 X_train = train_set.drop("class", axis=1)
 y_train = train_set["class"].copy()
+# Vemos los atributos que tiene el DF y vamos a modificar los tipo object en numerico en la medida de lo posible
 # print(X_train.info())
 protocol_type = X_train['protocol_type']
-protocol_type_encoded, categorias = protocol_type.factorize()
+protocol_type_encoded, categorias = protocol_type.factorize()  # Crea los valores numericos en funcion de los valores object
 # Mostramos por pantalla como se han codificado
 for i in range(10):
     print(protocol_type.iloc[i], "=", protocol_type_encoded[i])
@@ -124,6 +115,10 @@ protocol_type_encoded = ordinal_encoder.fit_transform(protocol_type)
 for i in range(10):
     print(protocol_type["protocol_type"].iloc[i], "=", protocol_type_encoded[i])
 
+# Algunos algoritmos de ML consideran estos datos numericos que acabamos de factorizar de forma que 
+# por ejemplo el valor 1 esta mas cerca del 2 que de el 3, por ello hay que tener cuidado y desfactorizarlos o se 
+# puede utilizar "One-hot encoding", el cual crea vectores numericos en los cuales cada celda corresponde a uno de los
+# valores que hemos factorizado lo cual veremos mas abajo
 # print(ordinal_encoder.categories_)
 # La sparse matrix solo almacena la posicion de los valores que no son '0' para ahorrar memoria
 protocol_type = X_train[['protocol_type']]
@@ -138,15 +133,16 @@ for i in range(10):
 
 print(ordinal_encoder.categories_)
 oh_encoder = OneHotEncoder(handle_unknown='ignore')
-pd.get_dummies(X_train['protocol_type'])
+# Creamos un nuevo df con las categorias
+# print(pd.get_dummies(X_train['protocol_type']))
+
+# Escalado de conjunto de datos, cuando los datos de entrada son muy dispares se realiza un escalado de los mismos
+# manteniendo la proporcion entre los valores pero reduciendo la disparidad entre ellos
 X_train = train_set.drop("class", axis=1)
 y_train = train_set["class"].copy()
-
 scale_attrs = X_train[['src_bytes', 'dst_bytes']]
 robust_scaler = RobustScaler()
 X_train_scaled = robust_scaler.fit_transform(scale_attrs)
 X_train_scaled = pd.DataFrame(X_train_scaled, columns=['src_bytes', 'dst_bytes'])
-
 # print(X_train_scaled.head(10))
 # print(X_train.head(10))
-
